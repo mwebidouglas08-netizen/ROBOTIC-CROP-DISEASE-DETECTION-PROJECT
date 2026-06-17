@@ -1,22 +1,14 @@
+"""
+Django settings for Robotic project.
+"""
+
 import os
-import dj_database_url
 from pathlib import Path
-import os
+
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-mqr04pwh0$d-!rpj1=os_a0cf9k(r-kkx77+d0w4zl-#(7#-+2')
-
- main
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
-
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') + [
-    '.github.dev',
-    '.app.github.dev',
-]
-=======
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-mqr04pwh0$d-!rpj1=os_a0cf9k(r-kkx77+d0w4zl-#(7#-+2')
@@ -24,11 +16,14 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-mqr04pwh0$d-!rpj1=os_a0cf9
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') + [
+    '.github.dev',
+    '.app.github.dev',
+    '.onrender.com',
+]
 
 
 # Application definition
-main
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -42,6 +37,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -69,6 +65,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Robotic.wsgi.application'
 
+
+# Database
 DATABASES = {
     'default': dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
@@ -76,6 +74,8 @@ DATABASES = {
     )
 }
 
+
+# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -94,40 +94,36 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+
+# Internationalization
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
 
+
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# CSRF trusted origins (covers Codespaces, local dev, and Render)
 CSRF_TRUSTED_ORIGINS = [
     'https://*.github.dev',
     'https://*.app.github.dev',
+    'https://*.onrender.com',
     'http://127.0.0.1:8000',
     'http://localhost:8000',
     'https://127.0.0.1:8000',
     'https://localhost:8000',
 ]
 
-main
+# Session / CSRF cookie security
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = True
-=======
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# Session settings
-SESSION_COOKIE_SECURE = not DEBUG
-SESSION_COOKIE_HTTPONLY = True
-CSRF_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_HTTPONLY = True
- main
