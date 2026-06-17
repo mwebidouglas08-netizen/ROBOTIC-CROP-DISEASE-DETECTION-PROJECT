@@ -9,22 +9,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatbotSend = document.getElementById('chatbot-send');
   const chatbotChips = document.querySelectorAll('[data-chat-prompt]');
 
-  let isDragging = false;
-  let offsetX, offsetY;
+  // Bail out safely if this page doesn't include the chatbot markup.
+  if (!chatbotWidget || !chatbotToggle || !chatbotMessages || !chatbotInput || !chatbotSend) {
+    return;
+  }
 
-  // --- Draggable Chatbot ---
+  // Endpoint is provided by config.js. If it isn't configured, the bot
+  // still opens/closes and replies with a friendly offline message
+  // instead of throwing a ReferenceError.
+  const CHAT_ENDPOINT = (window.SmartAIConfig && window.SmartAIConfig.CHAT_API_URL) || null;
+
+  let isDragging = false;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
+
+  // --- Draggable Chatbot (desktop only) ---
   const move = (e) => {
     if (!isDragging) return;
     let x = e.clientX - offsetX;
     let y = e.clientY - offsetY;
 
-    const body = document.body.getBoundingClientRect();
+    const maxX = window.innerWidth - chatbotWidget.offsetWidth;
+    const maxY = window.innerHeight - chatbotWidget.offsetHeight;
 
-    if (x < 0) x = 0;
-    if (y < 0) y = 0;
-    if (x + chatbotWidget.offsetWidth > body.width) x = body.width - chatbotWidget.offsetWidth;
-    if (y + chatbotWidget.offsetHeight > body.height) y = body.height - chatbotWidget.offsetHeight;
-
+    x = Math.max(0, Math.min(x, maxX));
+    y = Math.max(0, Math.min(y, maxY));
 
     chatbotWidget.style.left = `${x}px`;
     chatbotWidget.style.top = `${y}px`;
@@ -32,29 +43,33 @@ document.addEventListener('DOMContentLoaded', () => {
     chatbotWidget.style.bottom = 'auto';
   };
 
-  chatbotHeader.addEventListener('mousedown', (e) => {
-    if (window.matchMedia('(max-width: 768px)').matches) return;
-    isDragging = true;
-    offsetX = e.clientX - chatbotWidget.getBoundingClientRect().left;
-    offsetY = e.clientY - chatbotWidget.getBoundingClientRect().top;
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup', () => {
-      isDragging = false;
-      document.removeEventListener('mousemove', move);
+  const stopDragging = () => {
+    isDragging = false;
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', stopDragging);
+  };
+
+  if (chatbotHeader) {
+    chatbotHeader.addEventListener('mousedown', (e) => {
+      if (isMobile()) return;
+      isDragging = true;
+      offsetX = e.clientX - chatbotWidget.getBoundingClientRect().left;
+      offsetY = e.clientY - chatbotWidget.getBoundingClientRect().top;
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', stopDragging);
     });
-  });
 
-
-  chatbotHeader.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      if (chatbotWidget.classList.contains('open')) {
-        closeChat();
-      } else {
-        openChat();
+    chatbotHeader.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (chatbotWidget.classList.contains('open')) {
+          closeChat();
+        } else {
+          openChat();
+        }
       }
-    }
-  });
+    });
+  }
 
   // --- Chat Functionality ---
   const addMessage = (text, sender) => {
@@ -71,21 +86,28 @@ document.addEventListener('DOMContentLoaded', () => {
     chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
   };
 
-  const openChat = () => {
+  function openChat() {
     chatbotWidget.classList.add('open');
     chatbotToggle.style.display = 'none';
     chatbotWidget.setAttribute('aria-hidden', 'false');
     chatbotInput.focus();
-  };
+    // Reset any drag position on mobile so it always docks correctly.
+    if (isMobile()) {
+      chatbotWidget.style.left = '';
+      chatbotWidget.style.top = '';
+    }
+  }
 
-  const closeChat = () => {
+  function closeChat() {
     chatbotWidget.classList.remove('open');
     chatbotToggle.style.display = 'flex';
     chatbotWidget.setAttribute('aria-hidden', 'true');
-  };
+  }
 
   chatbotToggle.addEventListener('click', openChat);
-  closeChatbot.addEventListener('click', closeChat);
+  if (closeChatbot) {
+    closeChatbot.addEventListener('click', closeChat);
+  }
 
   chatbotChips.forEach((chip) => {
     chip.addEventListener('click', () => {
@@ -97,7 +119,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  const sendMessage = async () => {
+  const FALLBACK_REPLIES = [
+    "I can share general guidance on crop diseases, but I'm running in offline mode right now. Try checking the Disease Detection page for a full scan.",
+    "That's a great question for our detection tools. Head to the dashboard to run a scan on your crop images.",
+    "I'm currently offline, but the SmartAI team is working on connecting me to live support. In the meantime, explore Farm Simulation or Reports for more data.",
+  ];
+
+  const getFallbackReply = () =>
+    FALLBACK_REPLIES[Math.floor(Math.random() * FALLBACK_REPLIES.length)];
+
+  async function sendMessage() {
     const message = chatbotInput.value.trim();
     if (message === '') return;
 
@@ -105,17 +136,24 @@ document.addEventListener('DOMContentLoaded', () => {
     chatbotInput.value = '';
     setTyping(true);
 
+    // No backend chat endpoint configured: respond locally instead of
+    // crashing or calling a third-party API directly from the browser
+    // (which would leak any API key to every visitor).
+    if (!CHAT_ENDPOINT) {
+      window.setTimeout(() => {
+        setTyping(false);
+        addMessage(getFallbackReply(), 'bot');
+      }, 500);
+      return;
+    }
+
     try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const response = await fetch(CHAT_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GROQ_API_KEY}`
         },
-        body: JSON.stringify({
-          model: 'llama3-8b-8192',
-          messages: [{ role: 'user', content: message }],
-        }),
+        body: JSON.stringify({ message }),
       });
 
       if (!response.ok) {
@@ -123,17 +161,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await response.json();
-      const botMessage = data.choices[0]?.message?.content.trim();
+      const botMessage = (data && data.reply) || getFallbackReply();
       setTyping(false);
-      if (botMessage) {
-        addMessage(botMessage, 'bot');
-      }
+      addMessage(botMessage, 'bot');
     } catch (error) {
-      console.error('Error fetching from Groq API:', error);
+      console.error('Chatbot request failed:', error);
       setTyping(false);
-      addMessage('Sorry, something went wrong. Please try again.', 'bot');
+      addMessage('Sorry, something went wrong reaching the chat service. Please try again shortly.', 'bot');
     }
-  };
+  }
 
   chatbotSend.addEventListener('click', sendMessage);
   chatbotInput.addEventListener('keypress', (e) => {
