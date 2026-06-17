@@ -1,109 +1,141 @@
-<< main
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_protect
+
 
 # Create your views here.
 def index(request):
     return render(request, 'index.html')
 
+
 def analytics(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
     return render(request, 'dashboard/analytics.html')
 
+
 def dashboard(request):
-    return render(request, 'dashboard/dashboard.html') 
+    if not request.user.is_authenticated:
+        return redirect('login')
+    return render(request, 'dashboard/dashboard.html')
+
 
 def diseasedetection(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
     return render(request, 'dashboard/diseasedetection.html')
 
+
 def farmsimulation(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
     return render(request, 'dashboard/farmsimulation.html')
 
+
 def profile(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
     return render(request, 'dashboard/profile.html')
 
+
 def reports(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
     return render(request, 'dashboard/reports.html')
 
+
 def settings(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
     return render(request, 'dashboard/settings.html')
 
+
 def treatmenthistory(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
     return render(request, 'dashboard/treatmenthistory.html')
+
 
 def forgot_password(request):
     return render(request, 'auth/forgot-password.html')
 
+
+@require_http_methods(["GET", "POST"])
+@csrf_protect
 def login_user(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+
     if request.method == "POST":
-        # Using .get() prevents MultiValueDictKeyError if fields are missing
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+
+        if not username or not password:
+            messages.error(request, "Please enter your username and password")
+            return render(request, 'auth/login.html')
 
         user = authenticate(request, username=username, password=password)
 
         if user is not None:
             login(request, user)
             messages.success(request, "You are now logged in!")
-            
-            # FIX: Sent superuser to the main dashboard instead of non-existent /appointment
             return redirect('dashboard')
         else:
             messages.error(request, "Invalid login credentials")
 
     return render(request, 'auth/login.html')
 
-def register(request):
-    """ Handles account creation processing """
-    if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        confirm_password = request.POST.get('confirm_password')
 
-        # 1. Validate password match
+@require_http_methods(["GET", "POST"])
+@csrf_protect
+def register(request):
+    """Show the registration form and handle registration"""
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        if not all([username, password, confirm_password]):
+            messages.error(request, "Please fill in all fields")
+            return render(request, 'auth/register.html')
+
+        if len(username) < 3:
+            messages.error(request, "Username must be at least 3 characters long")
+            return render(request, 'auth/register.html')
+
+        if len(password) < 8:
+            messages.error(request, "Password must be at least 8 characters long")
+            return render(request, 'auth/register.html')
+
         if password != confirm_password:
             messages.error(request, "Passwords do not match")
             return render(request, 'auth/register.html')
-            
-        # 2. Validate user uniqueness
+
         if User.objects.filter(username=username).exists():
             messages.error(request, "Username already exists")
             return render(request, 'auth/register.html')
-            
-        # 3. Securely build and save user profile
-        user = User.objects.create_user(username=username, password=password)
-        user.save()
 
-        messages.success(request, "Account created successfully! Please log in.")
-        # FIX: Explicitly target the named URL route pattern
-        return redirect('login')
-            
+        try:
+            user = User.objects.create_user(username=username, password=password)
+            user.save()
+            messages.success(request, "Account created successfully! Please log in.")
+            return redirect('login')
+        except Exception as e:
+            messages.error(request, f"Error creating account: {str(e)}")
+            return render(request, 'auth/register.html')
+
     return render(request, 'auth/register.html')
 
+
+@require_http_methods(["POST"])
+@csrf_protect
 def logout_user(request):
     logout(request)
     messages.success(request, "You have been logged out.")
     return redirect('login')
-===
-from django.contrib import admin
-from django.urls import path
-from Roboapp import views
-
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', views.index, name='index'),
-    path('index/', views.index, name='index'),
-    path('analytics/', views.analytics, name='analytics'),
-    path('dashboard/', views.dashboard, name='dashboard'),
-    path('diseasedetection/', views.diseasedetection, name='diseasedetection'),
-    path('farmsimulation/', views.farmsimulation, name='farmsimulation'),
-    path('profile/', views.profile, name='profile'),
-    path('reports/', views.reports, name='reports'),
-    path('settings/', views.settings, name='settings'),
-    path('treatmenthistory/', views.treatmenthistory, name='treatmenthistory'),
-    path('forgot-password/', views.forgot_password, name='forgot-password'),
-    path('login/', views.login_user, name='login'),
-    path('register/', views.register, name='register'),
-    path('logout/', views.logout_user, name='logout'),
-]>>>> main
